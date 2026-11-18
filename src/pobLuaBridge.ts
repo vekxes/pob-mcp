@@ -354,6 +354,39 @@ export interface TimelessJewelsReport {
   jewels: TimelessJewel[];
 }
 
+export interface NodePowerReport {
+  stat: string;
+  label: string;
+  maxDepth: number;
+  total: number;
+  nonFinite: number;
+  nodes: Array<{
+    nodeId: number;
+    name: string;
+    type: string;
+    masteryEffectId?: number;
+    points: number;
+    nodeDelta: number;
+    pathDelta: number;
+    deltaPerPoint: number;
+  }>;
+}
+
+export interface TimelessSearchReport {
+  jewel: string;
+  conqueror: string;
+  socketNodeId: number;
+  socketAllocated: boolean;
+  notables: number;
+  seedsScanned: number;
+  total: number;
+  results: Array<{
+    seed: number;
+    score: number;
+    matches: Array<{ nodeId: number; nodeName: string; allocated: boolean; modId: string; stats: string[]; weight: number }>;
+  }>;
+}
+
 /**
  * One hypothetical passed to PoB's MiscCalculator. Nothing here is written to
  * the build: the engine applies the overrides for a single calculation only.
@@ -999,6 +1032,20 @@ async setTree(params: {
         conquered: asArray<ConqueredNode>(j.conquered).map((n) => ({ ...n, stats: asArray<string>(n.stats) })),
       })),
     };
+  }
+
+  async getNodePower(params: object): Promise<NodePowerReport> {
+    const response = await this.send({ action: 'get_node_power', params });
+    if (!response.ok) throw new Error(response.error || 'get_node_power failed');
+    const report = response.result as NodePowerReport;
+    return { ...report, nodes: Array.isArray(report.nodes) ? report.nodes : [] };
+  }
+
+  async findTimelessJewel(params: object): Promise<TimelessSearchReport> {
+    const response = await this.send({ action: 'find_timeless_jewel', params });
+    if (!response.ok) throw new Error(response.error || 'find_timeless_jewel failed');
+    const report = response.result as TimelessSearchReport;
+    return { ...report, results: Array.isArray(report.results) ? report.results : [] };
   }
 
   async getAilments(): Promise<{ ailments: AilmentReport[] }> {

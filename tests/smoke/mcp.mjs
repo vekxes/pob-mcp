@@ -91,7 +91,7 @@ try {
   });
   if (simulated.error || simulated.result?.isError) throw new Error(`lua_simulate failed: ${JSON.stringify(simulated.error ?? simulated.result)}`);
   const simulatedText = simulated.result?.content?.[0]?.text || '';
-  if (!simulatedText.includes('The loaded build is unchanged') || !/Life: [\d,]+ → [\d,]+ {2}\+/.test(simulatedText)) {
+  if (!simulatedText.includes('The loaded build is unchanged') || !/Life: [\d,\u00a0\u202f]+ → [\d,\u00a0\u202f]+ {2}\+/.test(simulatedText)) {
     throw new Error(`lua_simulate did not report a life gain: ${simulatedText}`);
   }
   const badSlot = await request('tools/call', { name: 'lua_simulate', arguments: { slotName: 'Chest', itemText: 'Rarity: RARE\nX\nQuilted Jacket' } });
@@ -104,6 +104,42 @@ try {
   }
   const badFocus = await request('tools/call', { name: 'lua_stat_weights', arguments: { focus: 'speed' } });
   if (badFocus.result?.isError !== true) throw new Error('lua_stat_weights must reject an unknown focus');
+
+  const call = async (name, args) => {
+    const response = await request('tools/call', { name, arguments: args });
+    if (response.error || response.result?.isError) {
+      throw new Error(`${name} failed: ${JSON.stringify(response.error ?? response.result)}`);
+    }
+    return response.result;
+  };
+  const beforeTree = await call('lua_get_tree', { include_node_ids: true });
+  const power = await call('get_node_power', { stat: 'Life', max_depth: 4, limit: 30 });
+  const timeless = await call('find_timeless_jewel', {
+    jewel: 'Lethal Pride', socket_node_id: 36634, conqueror: 'Kaom',
+    desired_mods: [{ mod: 'karui_notable_add_life_regen', weight: 2 }], limit: 3,
+  });
+  const rows = power.structuredContent?.nodes || [];
+  if (power.structuredContent?.stat !== 'Life' || !rows.some(row =>
+    row.points > 1 && row.pathDelta > 0 && Math.abs(row.pathDelta / row.points - row.deltaPerPoint) < 1e-9)) {
+    throw new Error(`get_node_power did not score a multi-point life path: ${JSON.stringify(power)}`);
+  }
+  const search = timeless.structuredContent;
+  const best = search?.results?.[0];
+  if (!best || search.seedsScanned < 1000 || best.score < 2 || !best.matches.length) {
+    throw new Error(`find_timeless_jewel did not rank the matching Lethal Pride seeds: ${JSON.stringify(timeless)}`);
+  }
+  const afterTree = await call('lua_get_tree', { include_node_ids: true });
+  if (beforeTree.content[0].text !== afterTree.content[0].text) throw new Error('read-only search changed the allocated tree');
+  await call('add_item', {
+    slot_name: 'Jewel 36634',
+    item_text: ['Rarity: UNIQUE', 'Lethal Pride', 'Timeless Jewel', 'Limited to: 1 Historic', 'Radius: Large', 'Implicits: 0',
+      `Commanded leadership over ${best.seed} warriors under Kaom`, 'Passives in radius are Conquered by the Karui', 'Historic'].join('\n'),
+  });
+  const applied = await call('lua_get_timeless_jewels', {});
+  for (const match of best.matches) {
+    const line = applied.content[0].text.split('\n').find(text => text.includes(`[${match.nodeId}]`));
+    if (!line?.includes('Regenerate 1% of Life per second')) throw new Error(`Expected native PoB conquest on node ${match.nodeId}: ${line}`);
+  }
   if (weightedSmoke) {
     if (!process.env.POE_SESSION_ID) throw new Error('POE_SESSION_ID is required for the weighted smoke test.');
     const weighted = await request('tools/call', { name: 'find_weighted_trade_items', arguments: { league: 'Standard', slot: 'Amulet', limit: 1 } });
@@ -111,7 +147,7 @@ try {
     const weightedText = weighted.result?.content?.[0]?.text || '';
     if (!weightedText.includes('=== Weighted BIS Search (Standard, slot: Amulet) ===')) throw new Error(`weighted trade response was incomplete: ${weightedText}`);
   }
-  console.log('MCP smoke passed: capabilities, snapshot, load, stats, items, skills, tree mutation/restore, config, anoint, and build info all succeeded');
+  console.log('MCP smoke passed: core build operations, node power, and Timeless Jewel seed search');
 } finally {
   child.kill();
   await rm(buildsDir, { recursive: true, force: true });

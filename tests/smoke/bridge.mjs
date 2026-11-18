@@ -1,5 +1,6 @@
 // Smoke test for the repo-owned adapter against an unmodified PoB.
 // Usage: node tests/smoke/bridge.mjs   (set POB_PATH only to force a checkout)
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import zlib from 'node:zlib';
@@ -7,6 +8,31 @@ import { PoBLuaApiClient } from '../../build/pobLuaBridge.js';
 import { gearedBuildXml, smokeLaunch, smokePoBSrc } from './pobSource.mjs';
 
 const cwd = smokePoBSrc();
+
+const nativeTest = await smokeLaunch(['-']);
+const nativeResult = spawnSync(nativeTest.cmd, nativeTest.args, {
+  input: `
+    local tick = 0
+    os.clock = function() tick = tick + 0.2; return tick end
+    function GetTime() return 0 end
+    data = { powerStatList = {{ stat = 'Life', label = 'Life' }} }
+    local node = { id = 1, type = 'Notable', dn = 'test', power = { previous = true }, pathDist = 1 }
+    build = { calcsTab = { mainEnv = {}, PowerBuilder = function()
+      local started = GetTime()
+      assert(GetTime() > started, 'headless Node Power clock did not advance')
+      node.power.singleStat = math.huge
+      node.power.pathPower = math.huge
+    end }, spec = { nodes = { node }, tree = {} } }
+    local native = dofile('lua/pob_native_search.lua')
+    local result, err = native.get_node_power({ stat = 'Life' })
+    assert(result, err)
+    assert(result.nonFinite == 1 and #result.nodes == 0, 'non-finite power was not reported and omitted')
+    assert(GetTime() == 0 and node.power.previous, 'Node Power did not restore headless state')
+  `,
+  encoding: 'utf8',
+  timeout: 5_000,
+});
+if (nativeResult.status !== 0) throw new Error(nativeResult.error?.message ?? nativeResult.stderr ?? 'native search smoke failed');
 
 const launch = await smokeLaunch([resolve('lua/vanilla_stdio_bridge.lua')]);
 const client = new PoBLuaApiClient({
@@ -24,7 +50,7 @@ try {
   for (const action of ['get_capabilities', 'get_items', 'get_skills', 'set_tree', 'generate_weighted_trade_query',
     'add_gem', 'set_config', 'save_build', 'search_nodes', 'get_mastery_options', 'calc_with',
     'create_spec', 'delete_spec', 'rename_spec', 'set_socket_group_enabled', 'set_gem_enabled',
-    'get_ailments', 'export_full_stats', 'get_timeless_jewels', 'parse_item', 'batch_modify']) {
+    'get_ailments', 'export_full_stats', 'get_timeless_jewels', 'get_node_power', 'find_timeless_jewel', 'parse_item', 'batch_modify']) {
     if (!capabilities.actions?.includes(action)) throw new Error(`missing adapter capability: ${action}`);
   }
   await client.loadBuildXml(await readFile(resolve('example-build.xml'), 'utf8'), 'bridge-smoke');

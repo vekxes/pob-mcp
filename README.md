@@ -383,6 +383,7 @@ PoB installation or checkout containing the relevant mod tables.
 | `set_character_level` | Set level and recalculate all stats |
 | `lua_get_stats` | Get calculated stats (`category`: `offense`/`defense`/`all`) |
 | `lua_get_timeless_jewels` | Timeless jewels as applied: seed, conqueror, lookup-table status, every conquered passive; warns when a jewel is doing nothing |
+| `find_timeless_jewel` | Search PoB's lookup tables for one socket and one of the six classic Timeless Jewels. Rank seeds by weighted modifier matches on notables |
 | `lua_get_ailments` | Non-damaging ailment magnitude, and whether the DPS calc is crediting it |
 | `lua_stat_weights` | Measure what a typical roll of each common affix is worth to this build, as % DPS and % EHP, ranked |
 | `lua_simulate` | Try an item swap, flask toggle, passive or mastery change and read the delta, without changing the build |
@@ -459,6 +460,7 @@ loaded build and fetches crafting/currency context from network services.
 |---|---|
 | `get_build_issues` | Get prioritized list of build problems and suggestions |
 | `get_passive_upgrades` | Rank unallocated notables by simulated DPS/EHP impact |
+| `get_node_power` | Run native PoB Node Power for a chosen stat and depth. Rank unallocated nodes and mastery effects by the full path's gain per point |
 | `suggest_masteries` | Rank effects available on allocated mastery nodes by live stat impact |
 | `check_boss_readiness` | Evaluate readiness for specific boss encounters |
 | `suggest_watchers_eye` | Suggest Watcher's Eye mods for the build's auras |

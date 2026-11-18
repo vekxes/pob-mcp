@@ -17,6 +17,7 @@ import { handleStartWatching, handleStopWatching, handleGetRecentChanges, handle
 import { handleCompareTrees, handleGetNearbyNodes, handleFindPath, handleConnectNodes, handleGetPassiveUpgrades, handleSuggestMasteries } from "../handlers/treeHandlers.js";
 import { handleGetBuildIssues, formatIssuesResponse } from "../handlers/buildGoalsHandlers.js";
 import { handleFindBestAnointment } from "../handlers/anointHandlers.js";
+import { handleFindTimelessJewel, handleGetNodePower } from "../handlers/nativeSearchHandlers.js";
 import { handleLuaStart, handleLuaStop, handleLuaNewBuild, handleLuaSaveBuild, handleLuaLoadBuild, handleLuaImportCode, handleLuaImportPobb, handleLuaGetAilments, handleLuaGetTimelessJewels, handleLuaSimulate, handleLuaStatWeights, handleParseItem, handleExportFullStats, handleBatchModify,
   handleLuaGetStats, handleLuaGetBuildSnapshot, handleLuaGetTree, handleLuaSetTree, handleSearchTreeNodes, handleLuaGetBuildInfo, handleLuaReloadBuild, handleUpdateTreeDelta, handleCreateSpec, handleListSpecs, handleSelectSpec, handleDeleteSpec, handleRenameSpec, handleListItemSets, handleSelectItemSet } from "../handlers/luaHandlers.js";
 import { handleAddItem, handleGetEquippedItems, handleToggleFlask, handleGetSkillSetup, handleSetMainSkill, handleCreateSocketGroup, handleAddGem, handleSetGemLevel, handleSetGemQuality, handleRemoveSkill, handleRemoveGem, handleSetupSkillWithGems, handleAddMultipleItems, handleSetSocketGroupEnabled, handleSetGemEnabled } from "../handlers/itemSkillHandlers.js";
@@ -265,6 +266,12 @@ export async function routeToolCall(
 
     case "lua_get_timeless_jewels":
       return await handleLuaGetTimelessJewels(luaContext, args?.include_unallocated === true);
+
+    case "get_node_power":
+      return await handleGetNodePower(luaContext, args ?? {});
+
+    case "find_timeless_jewel":
+      return await handleFindTimelessJewel(luaContext, args ?? {});
 
     case "lua_simulate":
       return await handleLuaSimulate(luaContext, {

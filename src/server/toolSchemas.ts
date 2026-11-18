@@ -557,6 +557,45 @@ export function getLuaToolSchemas(): ToolSchema[] {
       },
     },
     {
+      name: "get_node_power",
+      description: "Run Path of Building's native Node Power calculator for one metric on the loaded build. Ranks unallocated passive nodes and mastery effects by change per point, including intermediate nodes in the path. Returns the node-only change, total path change, and path cost. Read-only.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          stat: { type: "string", description: "PoB metric key or label (e.g. FullDPS, TotalEHP, Life, EnergyShield)." },
+          max_depth: { type: "integer", minimum: 1, maximum: 15, description: "Maximum path cost to evaluate. Default 5." },
+          limit: { type: "integer", minimum: 1, maximum: 50, description: "Maximum rows to return. Default 15." },
+        },
+        required: ["stat"],
+      },
+    },
+    {
+      name: "find_timeless_jewel",
+      description: "Search PoB's actual seed tables for a Timeless Jewel in one socket. Supports Glorious Vanity, Lethal Pride, Brutal Restraint, Militant Faith, Elegant Hubris and Heroic Tragedy. Scores matches on notables in range, using the sum of weights per occurrence. Conqueror identifies the variant to look for; conqueror keystones and small passives are outside this ranking. Read-only.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          jewel: { type: "string", description: "Timeless Jewel name, e.g. Lethal Pride." },
+          socket_node_id: { type: "integer", minimum: 1, maximum: 65535, description: "Passive node ID of the jewel socket." },
+          conqueror: { type: "string", description: "Conqueror name for this jewel, e.g. Kaom. Default Any." },
+          desired_mods: {
+            type: "array", minItems: 1, maxItems: 12,
+            items: {
+              type: "object",
+              properties: {
+                mod: { type: "string", description: "Exact PoB modifier ID or case-insensitive substring of a modifier's text." },
+                weight: { type: "number", exclusiveMinimum: 0, maximum: 1000, description: "Score for each match. Default 1." },
+              },
+              required: ["mod"],
+            },
+          },
+          include_unallocated: { type: "boolean", description: "Include unallocated notables within the socket radius. Default false." },
+          limit: { type: "integer", minimum: 1, maximum: 30, description: "Maximum seeds to return. Default 10." },
+        },
+        required: ["jewel", "socket_node_id", "desired_mods"],
+      },
+    },
+    {
       name: "lua_get_timeless_jewels",
       description: "List timeless jewels (Glorious Vanity, Lethal Pride, Brutal Restraint, Militant Faith, Elegant Hubris, Heroic Tragedy, and the Abyss eye jewels) as the engine actually applied them: seed, conqueror, whether the lookup table loaded, and every conquered passive with its post-conquest stats. Call this for any build with a timeless jewel before trusting its numbers, and after swapping seeds or sockets.",
       inputSchema: {
