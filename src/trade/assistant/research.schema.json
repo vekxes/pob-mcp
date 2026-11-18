@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "version": { "type": "integer", "enum": [1] },
+    "message": { "type": "string" },
+    "buildNoteQuotes": {
+      "type": "array", "maxItems": 4,
+      "items": {
+        "type": "object", "properties": { "text": { "type": "string" }, "reaffirm": { "type": "boolean" } },
+        "required": ["text", "reaffirm"], "additionalProperties": false
+      }
+    },
+    "resultRefs": { "type": "array", "items": { "type": "string" } },
+    "proposals": { "type": "array", "items": { "type": "string" }, "maxItems": 0 },
+    "recommendations": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "slot": { "type": "string" },
+          "reason": { "type": "string" },
+          "verification": { "type": "string" },
+          "sourceUrls": { "type": "array", "items": { "type": "string" }, "maxItems": 8 }
+        },
+        "required": ["title", "slot", "reason", "verification", "sourceUrls"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["version", "message", "resultRefs", "proposals", "recommendations", "buildNoteQuotes"],
+  "additionalProperties": false
+}

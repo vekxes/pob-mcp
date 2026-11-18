@@ -1,4 +1,5 @@
 import type { AilmentReport, BatchChange, PoBLuaApiClient } from "../pobLuaBridge.js";
+import { toFiniteNumber } from '../pobLuaBridge.js';
 import { noteIgnoredError } from '../utils/errorHandling.js';
 import { handleGetBuildIssues } from "./buildGoalsHandlers.js";
 import fs from "fs/promises";
@@ -667,6 +668,12 @@ export async function handleLuaGetAilments(context: LuaHandlerContext) {
   });
 }
 
+const SNAPSHOT_STATS = [
+  'Life', 'LifeUnreserved', 'EnergyShield', 'Mana', 'TotalDPS', 'CombinedDPS', 'FullDPS',
+  'MinionTotalDPS', 'TotalEHP', 'Armour', 'Evasion', 'EffectiveSpellSuppressionChance',
+  'FireResist', 'ColdResist', 'LightningResist', 'ChaosResist',
+];
+
 /**
  * A compact, post-edit view of the loaded build. Requests are deliberately
  * sequential because both bridge implementations use a single stdio channel.
@@ -681,10 +688,7 @@ export async function handleLuaGetBuildSnapshot(context: LuaHandlerContext) {
     }
 
     const info = await luaClient.getBuildInfo();
-    const stats = await luaClient.getStats([
-      'Life', 'EnergyShield', 'Mana', 'TotalDPS', 'CombinedDPS', 'MinionTotalDPS', 'TotalEHP',
-      'FireResist', 'ColdResist', 'LightningResist', 'ChaosResist',
-    ]);
+    const stats = await luaClient.getStats(SNAPSHOT_STATS);
     const tree = await luaClient.getTree();
     const items = await luaClient.getItems();
     const skills = await luaClient.getSkills();
@@ -717,7 +721,27 @@ export async function handleLuaGetBuildSnapshot(context: LuaHandlerContext) {
     }
     lines.push('Use lua_get_stats, lua_get_tree, get_equipped_items, or get_skill_setup for full detail.');
 
-    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    // PoB calculates the selected main group even when the socket group is disabled.
+    const mainSkill = mainGroup?.skills?.[(mainGroup.mainActiveSkill || 1) - 1];
+    const coreStats: Record<string, number> = {};
+    for (const key of SNAPSHOT_STATS) {
+      const value = toFiniteNumber(stats?.[key]);
+      if (value !== undefined) coreStats[key] = value;
+    }
+    return {
+      content: [{ type: 'text' as const, text: lines.join('\n') }],
+      structuredContent: {
+        className: info?.className,
+        ascendancy: info?.ascendClassName,
+        level: info?.level,
+        treeVersion: tree?.treeVersion ?? info?.treeVersion,
+        mainSkill,
+        skills: groups.filter(group => group === mainGroup || group.enabled !== false).flatMap(group => group.skills ?? []),
+        supportGems: (mainGroup?.gems ?? []).filter(gem => gem.isSupport && gem.enabled !== false).map(gem => gem.name),
+        gear: equipped.filter(item => item.shown !== false).map(({ slot, name, baseName, rarity }) => ({ slot, name, baseName, rarity })),
+        stats: coreStats,
+      },
+    };
   });
 }
 

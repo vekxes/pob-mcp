@@ -37,8 +37,8 @@ describe('handleLuaSimulate', () => {
       ),
     );
 
-    expect(text).toContain('Life: 5,000 → 6,200  +1,200 (+24.0%)');
-    expect(text).toContain('Effective HP: 50,000 → 58,000  +8,000 (+16.0%)');
+    expect(text).toContain(`Life: ${(5000).toLocaleString()} → ${(6200).toLocaleString()}  +${(1200).toLocaleString()} (+24.0%)`);
+    expect(text).toContain(`Effective HP: ${(50000).toLocaleString()} → ${(58000).toLocaleString()}  +${(8000).toLocaleString()} (+16.0%)`);
     expect(text).toContain('swap Body Armour');
   });
 
@@ -155,7 +155,8 @@ describe('handleLuaSimulate', () => {
     );
 
     expect(text).toContain('None of the stats listed above moved');
-    expect(text).toContain('Combined DPS: 1,000,000 → 1,000,000  unchanged');
+    const dps = (1000000).toLocaleString();
+    expect(text).toContain(`Combined DPS: ${dps} → ${dps}  unchanged`);
   });
 
   it('reports minion DPS, which the calculator nests under Minion', async () => {
@@ -169,7 +170,7 @@ describe('handleLuaSimulate', () => {
       ),
     );
 
-    expect(text).toContain('Minion Combined DPS: 200,000 → 300,000  +100,000 (+50.0%)');
+    expect(text).toContain(`Minion Combined DPS: ${(200000).toLocaleString()} → ${(300000).toLocaleString()}  +${(100000).toLocaleString()} (+50.0%)`);
     expect(text).not.toContain('None of the stats listed above moved');
   });
 
@@ -180,7 +181,7 @@ describe('handleLuaSimulate', () => {
       }),
     );
 
-    expect(text).toContain('Life: 5,000 → 5,100');
+    expect(text).toContain(`Life: ${(5000).toLocaleString()} → ${(5100).toLocaleString()}`);
     expect(text).not.toContain('Strength: 200');
     expect(text).toContain('Combined DPS');
   });

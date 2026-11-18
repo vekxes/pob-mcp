@@ -652,6 +652,7 @@ function M.calc_with(params)
   local override = {}
   local unrecognised = nil
   if params and (params.repItem ~= nil or params.repSlotName ~= nil) then
+    local itemsTab = build.itemsTab
     if type(params.repItem) ~= 'string' or type(params.repSlotName) ~= 'string' then
       return nil, 'repItem (item text) and repSlotName must be given together'
     end
@@ -659,15 +660,16 @@ function M.calc_with(params)
     if #params.repItem > MAX_ITEM_TEXT_LENGTH then
       return nil, string.format('repItem text too long (max %d bytes)', MAX_ITEM_TEXT_LENGTH)
     end
-    -- CalcSetup matches repSlotName against itemsTab slot names, not base types.
-    -- A name it never matches ("Ring", "Chest") calculates happily and returns the
-    -- unchanged build, so reject it here rather than report a zero delta as truth.
-    if not (build.itemsTab and build.itemsTab.slots and build.itemsTab.slots[params.repSlotName]) then
+    -- CalcSetup uses slot names and expects a compatible item for the slot.
+    if not (itemsTab and itemsTab.slots and itemsTab.slots[params.repSlotName]) then
       return nil, 'unknown slot: ' .. params.repSlotName
     end
     local parsed, item = pcall(Compat.construct, 'Item', params.repItem)
     if not parsed then return nil, 'invalid item text: ' .. tostring(item) end
     if not item or not item.baseName then return nil, 'failed to parse item' end
+    if not itemsTab:IsItemValidForSlot(item, params.repSlotName) then
+      return nil, 'this item cannot be equipped in ' .. params.repSlotName
+    end
     item:NormaliseQuality()
     -- Quality moves the item's mods, so rebuild them as ItemsTab does after normalising.
     item:BuildModList()

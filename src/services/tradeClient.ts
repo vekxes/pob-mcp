@@ -7,38 +7,40 @@ import {
   RateLimitInfo,
   CacheEntry,
   ItemListing,
+  FetchedItemListing,
 } from '../types/tradeTypes.js';
+
+export function tradeModDescription(mod: unknown): string | undefined {
+  if (typeof mod === 'string') return mod;
+  if (!mod || typeof mod !== 'object' || !('description' in mod)) return undefined;
+  return typeof mod.description === 'string' ? mod.description : undefined;
+}
 
 /**
  * GGG's /api/trade/fetch endpoint may return explicitMods/implicitMods/craftedMods
  * as plain strings or as rich objects `{ description, hash, mods: [...] }`.
- * The rest of the codebase's ItemListing contract is `string[]`, so normalize
- * here at the ingestion boundary rather than in every consumer.
+ * Existing ItemListing consumers expect `string[]` for stat comparisons.
  */
 export function normalizeModArray(mods: unknown): string[] {
   if (!Array.isArray(mods)) return [];
-  return mods.map((m) => {
-    if (typeof m === 'string') return m;
-    if (m && typeof m === 'object' && typeof (m as { description?: unknown }).description === 'string') {
-      return (m as { description: string }).description;
-    }
-    return String(m);
-  });
+  return mods.map(mod => tradeModDescription(mod) ?? String(mod));
 }
 
-const MOD_FIELDS = ['explicitMods', 'implicitMods', 'craftedMods'] as const;
+const MOD_FIELDS = ['explicitMods', 'implicitMods', 'craftedMods', 'enchantMods', 'fracturedMods', 'utilityMods'] as const;
 
-function normalizeItemListing(listing: ItemListing): ItemListing {
-  if (!listing?.item) return listing;
-  const item: Record<string, unknown> = { ...listing.item };
+function normalizeItemListing(listing: FetchedItemListing): ItemListing {
+  if (!listing.item) return listing;
+  const item = { ...listing.item };
   for (const field of MOD_FIELDS) {
     if (item[field] !== undefined) item[field] = normalizeModArray(item[field]);
   }
-  return { ...listing, item: item as unknown as ItemListing['item'] };
+  return { ...listing, item };
 }
 
 /** 4xx or 429: retrying the identical request will not fix it. */
 class FinalApiError extends Error {}
+
+type TradeRequestSession = { id?: string; signal: AbortSignal };
 
 /**
  * Client for interacting with the Path of Exile Trade API
@@ -50,8 +52,12 @@ class FinalApiError extends Error {}
  * - Rate limit header parsing
  */
 export class TradeApiClient {
-  private readonly baseUrl = 'https://www.pathofexile.com/api/trade';
+  private readonly baseUrl: string;
+  private readonly realm?: 'xbox' | 'sony' | 'poe2';
+  private readonly userAgent: string;
+  private readonly fetchRequest: (url: string, options: RequestInit) => Promise<Response>;
   private readonly limiter: Bottleneck;
+  #session?: TradeRequestSession;
   // Bounded LRU: entries are TTL-expiring listings/results, but TTL expiry
   // only happens on read — a client that searches many distinct queries
   // would otherwise accumulate cache entries for its whole lifetime.
@@ -71,7 +77,18 @@ export class TradeApiClient {
     cacheTTL?: number;
     maxRetries?: number;
     retryBaseDelayMs?: number;
+    realm?: 'xbox' | 'sony' | 'poe2';
+    userAgent?: string;
+    session?: TradeRequestSession;
+    fetchRequest?: (url: string, options: RequestInit) => Promise<Response>;
   }) {
+    this.realm = options?.realm;
+    this.#session = options?.session;
+    this.fetchRequest = options?.fetchRequest ?? ((url, init) => fetch(url, init));
+    this.baseUrl = this.realm === 'poe2'
+      ? 'https://www.pathofexile.com/api/trade2'
+      : 'https://www.pathofexile.com/api/trade';
+    this.userAgent = options?.userAgent ?? 'pob-mcp-server/1.0';
     const requestsPerSecond = options?.requestsPerSecond || 4;
     this.defaultCacheTTL = (options?.cacheTTL || 300) * 1000; // Convert to ms
     this.retryMaxAttempts = 1 + Math.max(0, options?.maxRetries ?? 2);
@@ -87,7 +104,8 @@ export class TradeApiClient {
     });
 
     // Set up event handlers for better observability
-    this.limiter.on('failed', async (_error, jobInfo) => {
+    this.limiter.on('failed', async (error, jobInfo) => {
+      if (error?.name === 'AbortError') return;
       const retryAfter = this.rateLimitInfo?.retryAfter;
       if (retryAfter && jobInfo.retryCount < 3) {
         console.error(`[TradeAPI] Request failed, retrying after ${retryAfter}ms (attempt ${jobInfo.retryCount + 1}/3)`);
@@ -100,22 +118,39 @@ export class TradeApiClient {
     });
   }
 
+  setSession(session: TradeRequestSession): void {
+    this.#session = session;
+    this.cache.clear();
+  }
+
   /**
    * Search for items matching the given query
    */
-  async searchItems(league: string, query: TradeQuery): Promise<SearchResult> {
+  async searchItems(league: string, query: TradeQuery, fresh = false): Promise<SearchResult> {
+    const session = this.#session;
     const cacheKey = `search:${league}:${JSON.stringify(query)}`;
-    const cached = this.getFromCache<SearchResult>(cacheKey);
+    const cached = fresh ? undefined : this.getFromCache<SearchResult>(cacheKey);
     if (cached) {
       return cached;
     }
 
-    const url = `${this.baseUrl}/search/${encodeURIComponent(league)}`;
+    const realm = this.realm ? `${this.realm}/` : '';
+    const url = `${this.baseUrl}/search/${realm}${encodeURIComponent(league)}`;
     const result = await this.limiter.schedule(() =>
-      this.makeRequest<SearchResult>('POST', url, query)
+      this.makeRequest<SearchResult>('POST', url, session, query)
     );
 
+    session?.signal.throwIfAborted();
     this.putInCache(cacheKey, result, this.defaultCacheTTL);
+    return result;
+  }
+
+  async getSearchQuery(league: string, searchId: string): Promise<unknown> {
+    const session = this.#session;
+    const realm = this.realm ? `${this.realm}/` : '';
+    const url = `${this.baseUrl}/search/${realm}${encodeURIComponent(league)}/${encodeURIComponent(searchId)}`;
+    const result = await this.limiter.schedule(() => this.makeRequest<unknown>('GET', url, session, undefined, 8_000));
+    session?.signal.throwIfAborted();
     return result;
   }
 
@@ -125,34 +160,43 @@ export class TradeApiClient {
    * batched into sequential requests (rate limiter already serializes them).
    */
   async fetchItems(itemIds: string[], queryId?: string): Promise<ItemListing[]> {
+    return (await this.fetchRawItems(itemIds, queryId)).map(normalizeItemListing);
+  }
+
+  /** Preserve the official modifier flags and domains for listing displays. */
+  async fetchRawItems(itemIds: string[], queryId?: string): Promise<FetchedItemListing[]> {
+    const session = this.#session;
     if (itemIds.length === 0) {
       return [];
     }
 
     if (itemIds.length > 10) {
-      const all: ItemListing[] = [];
+      const all: FetchedItemListing[] = [];
       for (let i = 0; i < itemIds.length; i += 10) {
-        all.push(...(await this.fetchItems(itemIds.slice(i, i + 10), queryId)));
+        all.push(...(await this.fetchRawItems(itemIds.slice(i, i + 10), queryId)));
+        session?.signal.throwIfAborted();
       }
       return all;
     }
 
-    const cacheKey = `fetch:${itemIds.join(',')}`;
-    const cached = this.getFromCache<ItemListing[]>(cacheKey);
+    const cacheKey = `fetch:${queryId ?? ''}:${itemIds.join(',')}`;
+    const cached = this.getFromCache<FetchedItemListing[]>(cacheKey);
     if (cached) {
       return cached;
     }
 
     const idsParam = itemIds.join(',');
-    const url = queryId
-      ? `${this.baseUrl}/fetch/${idsParam}?query=${queryId}`
-      : `${this.baseUrl}/fetch/${idsParam}`;
+    const params = new URLSearchParams();
+    if (queryId) params.set('query', queryId);
+    if (this.realm) params.set('realm', this.realm);
+    const url = `${this.baseUrl}/fetch/${idsParam}${params.size ? `?${params}` : ''}`;
 
     const result = await this.limiter.schedule(() =>
-      this.makeRequest<FetchResult>('GET', url)
+      this.makeRequest<FetchResult>('GET', url, session)
     );
 
-    const items = (result.result || []).map(normalizeItemListing);
+    session?.signal.throwIfAborted();
+    const items = (result.result ?? []).filter(item => item != null);
     this.putInCache(cacheKey, items, this.defaultCacheTTL);
     return items;
   }
@@ -162,6 +206,7 @@ export class TradeApiClient {
    * This data changes infrequently, so we cache it for 1 hour
    */
   async getLeagues(): Promise<LeagueData> {
+    const session = this.#session;
     const cacheKey = 'leagues:all';
     const cached = this.getFromCache<LeagueData>(cacheKey, 3600000); // 1 hour
     if (cached) {
@@ -170,10 +215,23 @@ export class TradeApiClient {
 
     const url = `${this.baseUrl}/data/leagues`;
     const result = await this.limiter.schedule(() =>
-      this.makeRequest<LeagueData>('GET', url)
+      this.makeRequest<LeagueData>('GET', url, session)
     );
 
+    session?.signal.throwIfAborted();
     this.putInCache(cacheKey, result, 3600000); // Cache for 1 hour
+    return result;
+  }
+
+  async getStatCatalog(): Promise<{ result: Array<{ entries: Array<{ id: string; text: string }> }> }> {
+    type Catalog = { result: Array<{ entries: Array<{ id: string; text: string }> }> };
+    const session = this.#session;
+    const cacheKey = 'stats:catalog';
+    const cached = this.getFromCache<Catalog>(cacheKey);
+    if (cached) return cached;
+    const result = await this.limiter.schedule(() => this.makeRequest<Catalog>('GET', this.baseUrl + '/data/stats', session));
+    session?.signal.throwIfAborted();
+    this.putInCache(cacheKey, result, 3_600_000);
     return result;
   }
 
@@ -184,15 +242,20 @@ export class TradeApiClient {
   private async makeRequest<T>(
     method: 'GET' | 'POST',
     url: string,
-    body?: unknown
+    session: TradeRequestSession | undefined,
+    body?: unknown,
+    timeoutMs = 30_000,
   ): Promise<T> {
+    session?.signal.throwIfAborted();
+    const sessionId = session ? session.id : process.env.POE_SESSION_ID;
     const options: RequestInit = {
       method,
+      redirect: 'error',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'pob-mcp-server/1.0',
+        'User-Agent': this.userAgent,
         // The official Trade API rejects anonymous weighted-sum searches
-        ...(process.env.POE_SESSION_ID ? { Cookie: `POESESSID=${process.env.POE_SESSION_ID}` } : {}),
+        ...(sessionId ? { Cookie: `POESESSID=${sessionId}` } : {}),
       },
       // The 30s timeout lives on the per-attempt signal: without one, a
       // stalled connection blocked the whole queue (limiter maxConcurrent 1).
@@ -206,8 +269,11 @@ export class TradeApiClient {
       try {
         // Fresh timeout per attempt: an AbortSignal.timeout fires once, and a
         // reused (expired) signal would fail every retry instantly.
-        options.signal = AbortSignal.timeout(30_000);
-        const response = await fetch(url, options);
+        session?.signal.throwIfAborted();
+        const timeout = AbortSignal.timeout(timeoutMs);
+        options.signal = session ? AbortSignal.any([session.signal, timeout]) : timeout;
+        const response = await this.fetchRequest(url, options);
+        session?.signal.throwIfAborted();
 
         // Parse rate limit headers
         this.updateRateLimitInfo(response);
@@ -234,15 +300,18 @@ export class TradeApiClient {
           throw new FinalApiError(`Trade API request failed (${response.status}): ${errorText}`);
         }
 
-        return await response.json() as T;
+        const data = await response.json() as T;
+        session?.signal.throwIfAborted();
+        return data;
       } catch (error) {
+        session?.signal.throwIfAborted();
         // Network/timeout rejections (fetch throws TypeError/TimeoutError) and
         // 5xx arrive here as retryable; 4xx/429 are FinalApiError.
         if (error instanceof FinalApiError || attempt >= this.retryMaxAttempts) {
           throw error;
         }
         const delayMs = this.retryBaseDelayMs * 2 ** (attempt - 1);
-        console.error(`[TradeAPI] transient failure (${error instanceof Error ? error.message : String(error)}), retrying in ${delayMs}ms (attempt ${attempt}/${this.retryMaxAttempts})`);
+        console.error(`[TradeAPI] transient failure, retrying in ${delayMs}ms (attempt ${attempt}/${this.retryMaxAttempts})`);
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }

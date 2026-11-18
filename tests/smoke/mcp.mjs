@@ -91,7 +91,7 @@ try {
   });
   if (simulated.error || simulated.result?.isError) throw new Error(`lua_simulate failed: ${JSON.stringify(simulated.error ?? simulated.result)}`);
   const simulatedText = simulated.result?.content?.[0]?.text || '';
-  if (!simulatedText.includes('The loaded build is unchanged') || !/Life: [\d,]+ → [\d,]+ {2}\+/.test(simulatedText)) {
+  if (!simulatedText.includes('The loaded build is unchanged') || !/^ {2}Life: .+ → .+ {2}\+/m.test(simulatedText)) {
     throw new Error(`lua_simulate did not report a life gain: ${simulatedText}`);
   }
   const badSlot = await request('tools/call', { name: 'lua_simulate', arguments: { slotName: 'Chest', itemText: 'Rarity: RARE\nX\nQuilted Jacket' } });

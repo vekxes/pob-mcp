@@ -52,7 +52,7 @@ export async function handleGenerateWeightedTradeQuery(context: { getLuaClient: 
     if (warning) lines.push(`Warning: ${warning}`);
     if (args.league) lines.push(`Trade site link: https://www.pathofexile.com/trade/search/${encodeURIComponent(args.league)}?q=${encodeURIComponent(json)}`);
     lines.push('', 'Request body:', json);
-    return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    return { structuredContent: { query, warning }, content: [{ type: 'text' as const, text: lines.join('\n') }] };
   });
 }
 

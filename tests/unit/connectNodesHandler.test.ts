@@ -48,7 +48,7 @@ describe('handleConnectNodes', () => {
     const calcWith = jest.fn(async () => ({ output: { Life: 1200 }, base: { Life: 1000 } }));
     const res = await handleConnectNodes(makeContext(calcWith as never), 'B', ['4']);
     expect(calcWith).toHaveBeenCalledWith({ addNodes: [2, 3, 4] });
-    expect(res.content[0].text).toContain('Life: 1,000 -> 1,200 (+200)');
+    expect(res.content[0].text).toContain(`Life: ${(1000).toLocaleString()} -> ${(1200).toLocaleString()} (+200)`);
   });
 
   it('only enters an ascendancy the build has started or targets', async () => {

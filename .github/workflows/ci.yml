@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feat/local-trade-companion]
   pull_request:
 
 jobs:
@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       # Smoke tests (tests/smoke/*.mjs) need a live Path of Building install
       # and are not runnable on CI runners — this runs build + jest + the
       # coverage thresholds (jest.config.cjs coverageThreshold).

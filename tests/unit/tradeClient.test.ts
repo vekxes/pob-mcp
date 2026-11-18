@@ -136,6 +136,18 @@ describe('TradeApiClient transient retry (exponential backoff)', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('stops rescheduling a rate-limited request when its session is cancelled', async () => {
+    const lifetime = new AbortController();
+    const client = new TradeApiClient({ requestsPerSecond: 1000, session: { signal: lifetime.signal } });
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 429, headers: { 'Retry-After': '1' } }));
+    const retries = jest.spyOn(console, 'error').mockImplementation(message => {
+      if (String(message).includes('Retrying request')) lifetime.abort();
+    });
+
+    await expect(client.getLeagues()).rejects.toMatchObject({ name: 'AbortError' });
+    expect(retries.mock.calls.filter(([message]) => String(message).includes('Retrying request'))).toHaveLength(1);
+  });
+
   it('backs off exponentially between attempts', async () => {
     const client = new TradeApiClient({ requestsPerSecond: 1000, retryBaseDelayMs: 20 });
     jest.spyOn(globalThis, 'fetch')

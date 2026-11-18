@@ -1,9 +1,9 @@
 import { XMLParser } from "fast-xml-parser";
 import fs from "fs/promises";
-import path from "path";
 import type { PoBBuild, CachedBuild, ParsedConfiguration, ConfigInput, ConfigSet, Flask, FlaskAnalysis, Jewel, JewelAnalysis, TreeSpec } from "../types.js";
 import { asArray, activeItemSetOf, itemSetsOf, itemTextMapOf } from "../utils/pobXml.js";
 import { resolveBuildFile } from "../utils/pathSanitizer.js";
+import { listPobBuildFiles } from "../utils/buildFiles.js";
 import { parseItem, itemLabel } from "./itemParser.js";
 import { TIMELESS_SEED_PHRASES } from "../data/itemFormat.generated.js";
 
@@ -25,32 +25,7 @@ export class BuildService {
 
   async listBuilds(): Promise<string[]> {
     try {
-      const builds: string[] = [];
-
-      // Recursive function to find XML files
-      const findXmlFiles = async (dir: string, relativePath: string = "") => {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-
-        for (const entry of entries) {
-          // Skip hidden files and temp files
-          if (entry.name.startsWith('.') || entry.name.startsWith('~~temp~~')) {
-            continue;
-          }
-
-          const fullPath = path.join(dir, entry.name);
-          const relPath = relativePath ? path.join(relativePath, entry.name) : entry.name;
-
-          if (entry.isDirectory()) {
-            // Recursively search subdirectories
-            await findXmlFiles(fullPath, relPath);
-          } else if (entry.isFile() && entry.name.endsWith('.xml')) {
-            builds.push(relPath);
-          }
-        }
-      };
-
-      await findXmlFiles(this.pobDirectory);
-      return builds;
+      return await listPobBuildFiles(this.pobDirectory);
     } catch (error) {
       console.error("Could not read PoB directory:", error);
       return [];

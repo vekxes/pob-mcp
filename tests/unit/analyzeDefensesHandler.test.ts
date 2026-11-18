@@ -102,8 +102,8 @@ describe('handleAnalyzeDefenses', () => {
     const text = textOf(await handleAnalyzeDefenses(context(client), 'occ-vortex'));
 
     expect(text).toContain('Binding Constraint');
-    expect(text).toContain('Physical    18,642  ← BINDING');
-    expect(text).toContain('Chaos       39,580');
+    expect(text).toContain(`Physical    ${(18642).toLocaleString()}  ← BINDING`);
+    expect(text).toContain(`Chaos       ${(39580).toLocaleString()}`);
   });
 
   it('does not sweep unless asked', async () => {
@@ -128,9 +128,9 @@ describe('handleAnalyzeDefenses', () => {
 
     expect(text).toContain('Chaos Resistance Sweep');
     expect(text).toContain('Stop at +10%');
-    expect(text).toContain('+11,083 to the lowest resisted max hit');
+    expect(text).toContain(`+${(11083).toLocaleString()} to the lowest resisted max hit`);
     // Physical is still the overall floor, and no resistance touches it.
-    expect(text).toContain('Physical still owns the overall floor at 18,642');
+    expect(text).toContain(`Physical still owns the overall floor at ${(18642).toLocaleString()}`);
     expect(simulated.length).toBeGreaterThan(1);
   });
 

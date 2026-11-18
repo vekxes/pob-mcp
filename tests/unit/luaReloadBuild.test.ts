@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
+import { join, resolve } from 'node:path';
 
 const readFile = jest.fn(async (..._args: unknown[]) => '<?xml version="1.0"?><PathOfBuilding/>');
 jest.mock('fs/promises', () => ({ __esModule: true, default: { readFile } }));
@@ -7,9 +8,10 @@ import { handleLuaReloadBuild } from '../../src/handlers/luaHandlers.js';
 
 describe('handleLuaReloadBuild', () => {
   const loadBuildXml = jest.fn(async (..._args: unknown[]) => ({}));
+  const buildsDirectory = resolve('builds');
 
   const context = {
-    pobDirectory: '/builds',
+    pobDirectory: buildsDirectory,
     getLuaClient: () => ({ loadBuildXml, getBuildInfo: async () => ({ name: 'whatever' }) }),
     ensureLuaClient: async () => {},
   } as unknown as Parameters<typeof import('../../src/handlers/luaHandlers.js').handleLuaReloadBuild>[0];
@@ -23,7 +25,7 @@ describe('handleLuaReloadBuild', () => {
     await handleLuaReloadBuild(context, 'Luminary');
 
     expect(readFile).toHaveBeenCalledTimes(1);
-    expect(String(readFile.mock.calls[0][0])).toBe('/builds/Luminary.xml');
+    expect(String(readFile.mock.calls[0][0])).toBe(join(buildsDirectory, 'Luminary.xml'));
   });
 
   // The suffix check has to be case-insensitive, matching buildFileName and the
@@ -32,12 +34,12 @@ describe('handleLuaReloadBuild', () => {
   it('treats an uppercase suffix as already present', async () => {
     await handleLuaReloadBuild(context, 'Luminary.XML');
 
-    expect(String(readFile.mock.calls[0][0])).toBe('/builds/Luminary.XML');
+    expect(String(readFile.mock.calls[0][0])).toBe(join(buildsDirectory, 'Luminary.XML'));
   });
 
   it('strips the suffix for the name handed to the bridge', async () => {
     await handleLuaReloadBuild(context, 'Luminary.XML');
 
-    expect(loadBuildXml).toHaveBeenCalledWith(expect.any(String), 'Luminary', '/builds/Luminary.XML');
+    expect(loadBuildXml).toHaveBeenCalledWith(expect.any(String), 'Luminary', join(buildsDirectory, 'Luminary.XML'));
   });
 });

@@ -1,18 +1,30 @@
-# Path of Building MCP Server
+# PoE Trade Companion and Path of Building MCP
 
-An MCP (Model Context Protocol) server that enables Claude to analyze, modify, and optimize Path of Building builds using PoB's actual calculation engine.
+A Windows desktop companion for Path of Exile and two local MCP (Model Context Protocol) servers for Codex, Claude Desktop, and other stdio clients.
+
+| Component | Entry point | Use |
+| --- | --- | --- |
+| PoE Trade Companion | `npm run trade:open` or the Windows shortcut | PoB item upgrades by slot and budget, listing comparisons, saved PoB sets, Live Search templates, and an optional Codex chat |
+| Path of Building MCP | `node build/index.js` | Inspect saved builds and calculate gear, skill, and passive-tree changes with the PoB engine |
+| PoE Trade MCP | `node build/trade/mcp.js` | Search item listings, work with PoB slot searches, and manage Live Search templates through the same service as the app |
+
+[Detailed installation and MCP configuration (Русский)](docs/INSTALL.md) · [Desktop app guide (Русский)](apps/trade-desktop/README.md)
 
 Uses an **unmodified [PathOfBuildingCommunity](https://github.com/PathOfBuildingCommunity/PathOfBuilding) source tree** with a compatible LuaJIT interpreter. The server ships its own stdio adapter that loads PoB's `HeadlessWrapper.lua` as a library and drives the calculation engine. It can also locate the engine and Lua modules from a supported macOS PoB installation. Some PoB revisions require a patched interpreter; see [Lua bridge setup](#setting-up-the-lua-bridge).
 
-> **PoE 3.29 compatibility:** This release targets Path of Building data and builds for the 3.29 league. Use a current PoB checkout for the matching tree, skills, and item data. Trade calls should always use `get_leagues` instead of hard-coding a challenge-league name.
+Use a PoB checkout that matches your build's tree, skills, and item data. Retrieve current leagues with `get_leagues` in the PoB MCP or `trade_list_leagues` in the Trade MCP. The local PoB engine integration supports PoE 1. The desktop app and Trade MCP also support PoE 2 trade scopes.
 
 ---
 
-**☕ If you find this project helpful, consider [buying me a coffee](https://buymeacoffee.com/ianderse)!**
+The PoB MCP is based on [ianderse/pob-mcp](https://github.com/ianderse/pob-mcp). You can [support the original author](https://buymeacoffee.com/ianderse).
 
 ---
 
 ## Features
+
+### Local Trade Companion
+
+The Windows companion shares saved searches and Live Search events with a dedicated local MCP server. It also generates trade searches for individual slots of a PoB build. See the [companion setup](apps/trade-desktop/README.md) for the launcher, MCP entry point and trade session settings.
 
 ### Build Analysis (Always Available)
 - **List & Analyze Builds**: Browse builds and extract stats, skills, items, passive trees, and notes from XML
@@ -92,14 +104,22 @@ These tools need the corresponding data files from a PoB installation or checkou
 
 ## Installation
 
-Use Node.js 20 or later. CI runs on Node.js 20.
+Install Git and Node.js 24 LTS with npm. The desktop launcher supports Windows.
 
 ```bash
-git clone https://github.com/ianderse/pob-mcp.git
+git clone --branch feat/local-trade-companion https://github.com/vekxes/pob-mcp.git
 cd pob-mcp
-npm install
+npm ci
 npm run build
 ```
+
+On Windows, run the following PowerShell command to create the **PoE Trade** desktop shortcut. Start it and use **Настройки → Сессия PoE Trade** to sign in with the embedded browser.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\apps\trade-desktop\Install-TradeShortcut.ps1
+```
+
+Follow the [installation guide](docs/INSTALL.md) to add LuaJIT for PoB calculations and register both servers with Codex or another MCP client.
 
 ## Configuration
 

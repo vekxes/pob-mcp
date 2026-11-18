@@ -335,8 +335,27 @@ export interface ItemListing {
   item: TradeItem;
 }
 
+export type FetchedTradeItem = Omit<TradeItem, 'implicitMods' | 'explicitMods' | 'craftedMods' | 'enchantMods' | 'fracturedMods' | 'utilityMods'>
+  & Partial<Record<`${string}Mods`, unknown>> & {
+    itemLevel?: number;
+    frameTypeId?: string;
+    fractured?: boolean;
+    doubleCorrupted?: boolean;
+    sanctified?: boolean;
+    desecrated?: boolean;
+    mutated?: boolean;
+    veiled?: boolean;
+    vestigial?: boolean;
+    unmodifiable?: boolean;
+    influences?: Record<string, boolean>;
+    notableProperties?: Property[];
+    additionalProperties?: Property[];
+  };
+
+export type FetchedItemListing = Omit<ItemListing, 'item'> & { item: FetchedTradeItem };
+
 export interface FetchResult {
-  result: ItemListing[];
+  result: (FetchedItemListing | null)[];
 }
 
 // ========================================

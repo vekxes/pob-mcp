@@ -173,6 +173,7 @@ export async function handleGetEquippedItems(context: ItemSkillHandlerContext) {
     }
 
     return {
+      structuredContent: { items: items.map(item => ({ ...item, mods: parseItemRawMods(item.raw) })) },
       content: [
         {
           type: "text" as const,

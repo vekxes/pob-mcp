@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PoE Trade</title>
+  <link rel="icon" href="/icon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="mast">
+    <div class="mast-inner">
+      <h1>PoE Trade</h1>
+      <div class="mast-actions">
+        <button id="scope-settings" type="button" class="quiet" title="Открыть настройки лиги">Выбрать лигу</button>
+        <button id="assistant-toggle" type="button" class="secondary" aria-controls="assistant" aria-expanded="false" title="Проверяем Codex CLI" disabled>Чат Codex</button>
+      </div>
+    </div>
+  </header>
+  <main>
+    <nav aria-label="Разделы">
+      <button data-page="build" aria-current="page">Комплект PoB</button>
+      <button data-page="watches">Live Search <span id="new-count" hidden></span></button>
+      <button data-page="settings">Настройки</button>
+    </nav>
+    <p id="status" role="status" hidden></p>
+
+    <section id="build">
+      <div class="section-top"><h2>Trade for these items</h2></div>
+      <section class="pob-sets" aria-labelledby="pob-sets-title">
+        <h3 id="pob-sets-title">Сохранённые комплекты</h3>
+        <div id="pob-set-list" class="cards" aria-live="polite"></div>
+      </section>
+      <form id="import-form" class="panel">
+        <div class="fields">
+          <label>Источник<select id="import-kind" name="kind"><option value="code">Код экспорта</option><option value="link">Ссылка pobb.in / poedb.tw</option><option value="file">Файл в папке билдов PoB</option><option value="xml">XML</option></select></label>
+          <label>Имя билда<input name="name" placeholder="Опционально"></label>
+        </div>
+        <label id="import-text-label">Код, ссылка или XML<textarea id="import-text" name="value" required rows="3"></textarea></label>
+        <div id="import-file-fields" hidden>
+          <div class="filter-bar">
+            <label>Файл билда<select id="import-file" name="value" aria-describedby="import-file-status" required disabled><option value="">Выбери билд</option></select></label>
+            <button id="refresh-build-files" type="button" class="secondary">Обновить список</button>
+          </div>
+          <p id="import-file-status" class="muted" role="status" hidden></p>
+        </div>
+        <button>Загрузить билд</button>
+      </form>
+      <form id="build-notes-form" class="panel" aria-labelledby="build-notes-title" hidden>
+        <h3 id="build-notes-title">Заметки для помощника</h3>
+        <p id="build-notes-help" class="muted">Сохранённые заметки этой ревизии передаются Codex с запросами по билду.</p>
+        <textarea id="build-notes-text" rows="5" maxlength="12000" aria-labelledby="build-notes-title" aria-describedby="build-notes-help" readonly></textarea>
+        <div class="actions">
+          <button id="build-notes-save" type="submit" disabled>Сохранить заметки</button>
+          <button id="build-notes-refresh" type="button" class="secondary">Обновить заметки</button>
+        </div>
+        <p id="build-notes-status" class="muted" role="status"></p>
+      </form>
+      <form id="build-form" class="panel" hidden>
+        <h3 id="build-title" tabindex="-1"></h3>
+        <div class="fields">
+          <label>Режим<select name="mode"><option value="match">Подобрать похожие</option><option value="upgrade">Найти апгрейды</option></select></label>
+          <label>Минимум на слот<input name="min" type="number" min="0" step="any" placeholder="Без минимума"></label>
+          <label>Максимум на слот<input name="max" type="number" min="0" step="any" placeholder="Без лимита"></label>
+          <label>Валюта цены<select name="currency" lang="en"><option value="">Chaos Orb Equivalent</option></select></label>
+        </div>
+        <label class="currency-filter"><input type="checkbox" name="currency-only" disabled>Учитывать валюту без диапазона</label>
+        <div>
+          <label for="slot-picker">Слот и экипированный предмет<select id="slot-picker"></select></label>
+          <div id="slot-details" class="pob-slot-details trade-listing-details" hidden></div>
+        </div>
+        <details id="slot-budgets" class="slot-budgets" hidden>
+          <summary>Бюджет выбранного слота</summary>
+          <div id="slot-budget-fields" class="slot-budget-fields"></div>
+        </details>
+        <button>Создать поиск по выбранному слоту</button>
+        <div class="filter-bar pob-set-save">
+          <label>Имя комплекта<input id="pob-set-name" name="set-name" maxlength="120" placeholder="Имя билда"></label>
+          <button id="pob-set-save" type="button" class="secondary">Сохранить комплект</button>
+        </div>
+      </form>
+      <div id="build-results"></div>
+      <form id="simulate-form" class="panel" hidden>
+        <h3>Сравнить предмет в PoB</h3>
+        <label>Слот<select name="slot" id="simulate-slot"></select></label>
+        <label>Текст скопированного предмета<textarea name="itemText" required rows="4"></textarea></label>
+        <button>Рассчитать</button>
+        <pre id="simulation" hidden></pre>
+      </form>
+    </section>
+
+    <section id="watches" hidden>
+      <div class="section-top"><h2>Live Search</h2><span id="connection" class="muted" aria-live="polite"></span></div>
+      <form id="watch-import-form" class="panel">
+        <label>Ссылка на поиск PoE Trade<input name="url" type="url" placeholder="https://www.pathofexile.com/trade/search/…" maxlength="60000" required></label>
+        <label>Имя шаблона<input name="label" placeholder="Опционально" maxlength="120"></label>
+        <button>Импортировать шаблон</button>
+      </form>
+      <div class="watch-layout">
+        <div><h3>Сохранённые шаблоны</h3><div id="watch-list" class="cards"></div></div>
+        <div><h3>События</h3><div id="event-list" class="cards" aria-live="polite"></div></div>
+      </div>
+    </section>
+
+    <section id="settings" hidden>
+      <div class="section-top"><h2>Настройки</h2></div>
+      <section id="trade-session-panel" class="panel settings-panel" aria-labelledby="trade-session-heading">
+        <div class="settings-heading">
+          <h3 id="trade-session-heading" tabindex="-1">Сессия PoE Trade</h3>
+          <span id="trade-session-state" class="muted" aria-live="polite"></span>
+        </div>
+        <p id="trade-session-help" class="muted">Войди на официальном сайте в окне PoE Trade.</p>
+        <div class="actions">
+          <button id="trade-session-connect" type="button" disabled>Войти в Path of Exile</button>
+          <button id="trade-session-disconnect" type="button" class="secondary" hidden>Выйти из аккаунта</button>
+        </div>
+        <p id="trade-session-status" class="muted" role="status" hidden></p>
+      </section>
+
+      <section class="panel settings-panel" aria-labelledby="league-heading">
+        <h3 id="league-heading">Лига с торгового сайта</h3>
+        <div class="scope">
+          <label>Игра<select id="game"><option value="poe1">Path of Exile</option><option value="poe2">Path of Exile 2</option></select></label>
+          <label>Платформа<select id="realm"><option value="pc">PC</option><option value="xbox">Xbox</option><option value="sony">PlayStation</option></select></label>
+          <label>Лига<select id="league" aria-describedby="league-status" disabled><option value="">Загрузка…</option></select></label>
+          <button id="refresh-leagues" type="button" class="secondary">Обновить лиги</button>
+        </div>
+        <p id="league-status" class="muted" role="status"></p>
+        <form id="league-link-form" class="filter-bar">
+          <label>Ссылка на поиск<input name="url" type="url" placeholder="https://www.pathofexile.com/trade/search/…" required></label>
+          <button class="secondary">Выбрать лигу из ссылки</button>
+        </form>
+      </section>
+
+      <form id="codex-path-form" class="panel settings-panel" aria-labelledby="codex-path-heading" autocomplete="off">
+        <h3 id="codex-path-heading" tabindex="-1">Codex CLI</h3>
+        <fieldset id="codex-path-controls" disabled>
+          <div class="filter-bar">
+            <label>Путь к исполняемому файлу<input id="codex-path" name="path" spellcheck="false" maxlength="4096" placeholder="Абсолютный путь к codex.exe" required></label>
+            <button id="codex-path-browse" type="button" class="secondary" hidden>Выбрать файл</button>
+          </div>
+          <div class="actions">
+            <button>Сохранить путь</button>
+            <button id="codex-path-reset" type="button" class="quiet" hidden>Сбросить путь</button>
+          </div>
+        </fieldset>
+        <p id="codex-path-status" class="muted" role="status"></p>
+        <div class="settings-heading">
+          <button id="codex-check" type="button" class="secondary">Проверить готовность</button>
+          <p id="codex-readiness" class="muted" role="status"></p>
+        </div>
+      </form>
+
+      <form id="pob-settings-form" class="panel settings-panel" aria-labelledby="pob-settings-heading" autocomplete="off">
+        <h3 id="pob-settings-heading">Path of Building</h3>
+        <fieldset id="pob-settings-controls" class="integration-controls" disabled>
+          <div class="filter-bar">
+            <label>Папка билдов<input id="pob-builds-directory" name="buildsDirectory" spellcheck="false" maxlength="4096" placeholder="Путь к папке с XML-билдами"></label>
+            <button id="pob-browse-builds" type="button" class="secondary" aria-label="Выбрать папку билдов PoB" hidden>Выбрать папку</button>
+          </div>
+          <div class="filter-bar">
+            <label>Папка установки или исходников PoB<input id="pob-source-directory" name="sourceDirectory" spellcheck="false" maxlength="4096" placeholder="Путь к папке PoB с HeadlessWrapper.lua"></label>
+            <button id="pob-browse-source" type="button" class="secondary" aria-label="Выбрать папку установки PoB" hidden>Выбрать папку</button>
+          </div>
+          <div class="actions">
+            <button>Сохранить папки</button>
+            <button id="pob-settings-reset" type="button" class="quiet">Восстановить стандартные папки</button>
+          </div>
+        </fieldset>
+        <p id="pob-settings-status" class="muted" role="status"></p>
+      </form>
+
+      <form id="mcp-config-form" class="panel settings-panel" aria-labelledby="mcp-config-heading" autocomplete="off">
+        <h3 id="mcp-config-heading">Локальные MCP в Codex</h3>
+        <fieldset id="mcp-config-controls" class="integration-controls" disabled>
+          <div class="filter-bar">
+            <label>Файл config.toml<input id="mcp-config-path" name="path" spellcheck="false" maxlength="4096" placeholder="Абсолютный путь к config.toml" required></label>
+            <button id="mcp-config-browse" type="button" class="secondary" hidden>Выбрать файл</button>
+          </div>
+          <div class="actions integration-server-select">
+            <label class="currency-filter"><input type="checkbox" name="server" value="pob" checked>Path of Building</label>
+            <label class="currency-filter"><input type="checkbox" name="server" value="poe-trade" checked>PoE Trade</label>
+          </div>
+          <div class="actions">
+            <button id="mcp-config-submit" type="submit">Предпросмотр</button>
+            <button id="mcp-config-save" type="button" class="secondary">Запомнить путь</button>
+          </div>
+          <section id="mcp-config-draft" class="mcp-config-draft" hidden>
+            <p class="muted">Запись заменит настройки отмеченных MCP в выбранном файле. Перед изменением существующего файла приложение сохранит резервную копию.</p>
+            <pre id="mcp-config-preview" aria-label="Настройки MCP для записи"></pre>
+            <button id="mcp-config-apply" type="button">Записать в config.toml</button>
+          </section>
+        </fieldset>
+        <p id="mcp-config-status" class="muted" role="status"></p>
+      </form>
+    </section>
+  </main>
+  <aside id="assistant" class="assistant-drawer" aria-labelledby="assistant-heading" hidden>
+    <header class="assistant-header">
+      <div>
+        <h2 id="assistant-heading">Чат Codex</h2>
+        <p id="assistant-context" class="muted"></p>
+      </div>
+      <button id="assistant-close" type="button" class="quiet">Свернуть</button>
+    </header>
+    <div id="assistant-thread" class="assistant-thread" role="log" aria-label="Переписка с Codex">
+      <div id="assistant-history"></div>
+      <p id="assistant-question" class="chat-message chat-question" aria-label="Твоё сообщение" hidden></p>
+      <p id="assistant-answer-context" class="muted" hidden></p>
+      <p id="assistant-answer" class="chat-message chat-answer" aria-label="Ответ Codex" hidden></p>
+      <p id="assistant-notes-status" class="muted" role="status"></p>
+      <section id="assistant-research" hidden aria-labelledby="assistant-research-title">
+        <h3 id="assistant-research-title">Рекомендации</h3>
+        <div id="assistant-recommendations" class="cards"></div>
+        <div id="assistant-sources" class="assistant-sources"></div>
+      </section>
+      <section id="assistant-proposals" aria-labelledby="assistant-proposals-title" hidden>
+        <h3 id="assistant-proposals-title">Предложения помощника</h3>
+        <div id="assistant-proposal-list" class="cards"></div>
+      </section>
+      <div id="assistant-results" class="cards"></div>
+    </div>
+    <form id="assistant-form" class="assistant-composer">
+      <label>Сообщение<textarea name="text" rows="3" maxlength="8000" placeholder="Что улучшить в открытом билде?" required></textarea></label>
+      <label class="research-option"><input type="checkbox" name="research"> Искать гайды и открытые данные PoE</label>
+      <p id="assistant-status" class="muted" role="status"></p>
+      <div class="actions">
+        <button id="assistant-send" disabled>Отправить</button>
+        <button id="assistant-cancel" type="button" class="secondary" hidden>Отменить запрос</button>
+      </div>
+      <p class="muted chat-privacy">Текст запроса и данные инструментов передаются сервису Codex.</p>
+    </form>
+  </aside>
+</body>
+</html>

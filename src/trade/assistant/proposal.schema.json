@@ -1,0 +1,86 @@
+{
+  "type": "object",
+  "properties": {
+    "version": { "type": "integer", "enum": [1] },
+    "message": { "type": "string" },
+    "buildNoteQuotes": {
+      "type": "array", "maxItems": 4,
+      "items": {
+        "type": "object", "properties": { "text": { "type": "string" }, "reaffirm": { "type": "boolean" } },
+        "required": ["text", "reaffirm"], "additionalProperties": false
+      }
+    },
+    "resultRefs": { "type": "array", "items": { "type": "string" } },
+    "proposals": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string", "enum": ["save_watch_from_result"] },
+              "resultRef": { "type": "string" },
+              "slot": { "type": "string" },
+              "label": { "type": ["string", "null"] }
+            },
+            "required": ["kind", "resultRef", "slot", "label"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string", "enum": ["import_watch_link"] },
+              "resultRef": { "type": "string" },
+              "label": { "type": ["string", "null"] }
+            },
+            "required": ["kind", "resultRef", "label"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string", "enum": ["pause_watch", "remove_watch"] },
+              "resultRef": { "type": "string" },
+              "watchId": { "type": "string" }
+            },
+            "required": ["kind", "resultRef", "watchId"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string", "enum": ["save_pob_set"] },
+              "label": { "type": "string" }
+            },
+            "required": ["kind", "label"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string", "enum": ["open_pob_set", "remove_pob_set"] },
+              "resultRef": { "type": "string" },
+              "setId": { "type": "string" }
+            },
+            "required": ["kind", "resultRef", "setId"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string", "enum": ["rename_pob_set"] },
+              "resultRef": { "type": "string" },
+              "setId": { "type": "string" },
+              "label": { "type": "string" }
+            },
+            "required": ["kind", "resultRef", "setId", "label"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": ["version", "message", "resultRefs", "proposals", "buildNoteQuotes"],
+  "additionalProperties": false
+}

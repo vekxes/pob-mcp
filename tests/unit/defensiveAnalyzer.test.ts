@@ -106,25 +106,25 @@ describe('analyzeDefenses', () => {
     const analysis = analyzeDefenses(OCC_VORTEX);
     const binding = analysis.recommendations.find((rec) => rec.category === 'binding');
 
-    expect(binding?.issue).toContain('Physical at 18,642 max hit');
+    expect(binding?.issue).toContain(`Physical at ${(18642).toLocaleString()} max hit`);
     expect(binding?.solutions.join(' ')).toContain('no amount of it moves the physical max hit');
-    expect(binding?.solutions.join(' ')).toContain('Chaos is the weakest of them at 39,580');
+    expect(binding?.solutions.join(' ')).toContain(`Chaos is the weakest of them at ${(39580).toLocaleString()}`);
   });
 
   it('tells a build to raise the resistance that owns the floor', () => {
     const chaosFloor = { ...OCC_VORTEX, PhysicalMaximumHitTaken: 99999 };
     const binding = analyzeDefenses(chaosFloor).recommendations.find((rec) => rec.category === 'binding');
 
-    expect(binding?.issue).toContain('Chaos at 39,580 max hit');
+    expect(binding?.issue).toContain(`Chaos at ${(39580).toLocaleString()} max hit`);
     expect(binding?.solutions.join(' ')).toContain('+7% Chaos resistance reaches the 75% cap');
-    expect(binding?.solutions.join(' ')).toContain('stops paying once it passes Fire at 63,711');
+    expect(binding?.solutions.join(' ')).toContain(`stops paying once it passes Fire at ${(63711).toLocaleString()}`);
   });
 
   it('prints the per-type table and explains why capped types tie', () => {
     const text = formatDefensiveAnalysis(analyzeDefenses(OCC_VORTEX));
 
-    expect(text).toContain('Physical    18,642  ← BINDING');
-    expect(text).toContain('Chaos       39,580 [68% resist]  2.12x the floor');
+    expect(text).toContain(`Physical    ${(18642).toLocaleString()}  ← BINDING`);
+    expect(text).toContain(`Chaos       ${(39580).toLocaleString()} [68% resist]  2.12x the floor`);
     expect(text).toContain('+30% overcap credited as nothing');
     expect(text).toContain('Fire, Cold, Lightning sit at the resistance cap');
     expect(text).toContain('averaged across damage types');
