@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib';
 import { wrapHandler } from '../utils/errorHandling.js';
 import { TradeApiClient } from '../services/tradeClient.js';
 import { TradeQueryBuilder } from '../services/tradeQueryBuilder.js';
@@ -46,11 +47,16 @@ export async function handleGenerateWeightedTradeQuery(context: { getLuaClient: 
     const client = context.getLuaClient();
     if (!client) throw new Error('Lua bridge not active. Load a build first.');
     const { query, warning } = await client.generateWeightedTradeQuery(args.slot, args.options);
-    if (!query || typeof query !== 'object') throw new Error('PoB returned no trade query');
-    const json = JSON.stringify(query);
+    const body = query as Partial<TradeQuery> | undefined;
+    if (!body?.query || typeof body.query !== 'object') throw new Error('PoB returned no trade query');
+    const json = JSON.stringify(body);
     const lines = [`=== Weighted Trade Query (slot: ${args.slot}) ===`];
     if (warning) lines.push(`Warning: ${warning}`);
-    if (args.league) lines.push(`Trade site link: https://www.pathofexile.com/trade/search/${encodeURIComponent(args.league)}?q=${encodeURIComponent(json)}`);
+    if (args.league) {
+      // PoB's browser format compresses the inner query, while POST uses the full body.
+      const encodedQuery = gzipSync(JSON.stringify(body.query)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+      lines.push(`Trade site link: ${getTradeSearchUrl(args.league, encodedQuery)}`);
+    }
     lines.push('', 'Request body:', json);
     return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
   });
